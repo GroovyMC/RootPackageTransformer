@@ -11,12 +11,12 @@ dependencies {
 }
 ```
 
-The gradle plugin provides a method to create an alternative published outgoing variant for a given source set feature. The created variant will have a `org.gradle.usage` value of `java-dsl`:
+The gradle plugin provides a method to create an alternative published outgoing variant for a given source set feature, providing a given capability:
 ```gradle
 plugins {
     id 'java'
     id 'org.groovymc.rootpackagetransformer' version '<version>'
 }
 
-rootPackageTransformer.forSourceSet(sourceSets.main)
+rootPackageTransformer.forSourceSet(sourceSets.main, 'org.example:example:1.0.0')
 ```

@@ -29,7 +29,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             this.project = project;
         }
 
-        public void forSourceSet(SourceSet sourceSet) {
+        public void forSourceSet(SourceSet sourceSet, String capability) {
             var transform = project.getTasks().register(sourceSet.getTaskName("rootPackageTransform", ""), TransformTask.class, task -> {
                 var dirs = sourceSet.getOutput().getClassesDirs();
                 task.dependsOn(dirs.getBuildDependencies());
@@ -73,7 +73,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             var runtimeElements = project.getConfigurations().getByName(sourceSet.getTaskName("runtimeElements", ""));
             rootPackageElements.getDependencies().addAllLater(project.provider(runtimeElements::getDependencies));
             copyAttributes(runtimeElements, rootPackageElements);
-            rootPackageElements.getAttributes().attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, "java-dsl"));
+            rootPackageElements.getOutgoing().capability(capability);
             project.artifacts(artifactHandler ->
                     artifactHandler.add(rootPackageElements.getName(), rootPackageJar.get())
             );
@@ -108,9 +108,6 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
     @SuppressWarnings({"DataFlowIssue", "unchecked", "rawtypes"})
     private static void copyAttributes(Configuration original, Configuration target) {
         for (var attribute : original.getAttributes().keySet()) {
-            if (attribute.equals(Usage.USAGE_ATTRIBUTE)) {
-                continue;
-            }
             target.getAttributes().attribute((Attribute) attribute, original.getAttributes().getAttribute(attribute));
         }
     }

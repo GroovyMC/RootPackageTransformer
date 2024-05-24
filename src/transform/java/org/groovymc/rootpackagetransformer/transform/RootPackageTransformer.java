@@ -86,7 +86,10 @@ public final class RootPackageTransformer implements UnaryOperator<String> {
             if (entry.target().length() > l) {
                 break;
             }
-            if (s.contains(entry.target())) {
+            if (s.equals(entry.target())) {
+                return entry.replacement();
+            }
+            while (s.contains(entry.target())) {
                 s = s.replace(entry.target(), entry.replacement());
             }
         }
