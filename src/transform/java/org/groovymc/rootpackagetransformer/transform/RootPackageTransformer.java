@@ -135,13 +135,14 @@ public final class RootPackageTransformer implements UnaryOperator<String> {
             newClassName = apply(className);
             if (rewritten.trim().startsWith("package ")) {
                 int end = rewritten.indexOf(';');
+                String packageName = className.substring(0, className.lastIndexOf('/')).replace('/', '.');
                 if (end != -1) {
-                    String prefix = "import "+className.substring(0, className.lastIndexOf('/')).replace('/', '.')+".*;";
+                    String prefix = "import "+ packageName +".*;";
                     rewritten = prefix+rewritten.substring(end + 1);
                 } else {
                     int line = rewritten.indexOf('\n');
                     if (line != -1) {
-                        String prefix = "import "+className.substring(className.lastIndexOf('/')+1).replace('/', '.')+".*"+(rewritten.contains("\r") ? "\r\n" : "\n");
+                        String prefix = "import "+ packageName +".*"+(rewritten.contains("\r") ? "\r\n" : "\n");
                         rewritten = prefix+rewritten.substring(line + 1);
                     }
                 }
