@@ -1,0 +1,19 @@
+[versions]
+
+managedversioning = "1.2.19"
+nexuspublish = "2.0.0"
+pluginpublish = "1.2.1"
+asm = "9.7"
+junit = "5.8.1"
+
+[libraries]
+
+asm = { group = "org.ow2.asm", name = "asm", version.ref = "asm" }
+junit_api = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junit" }
+junit_engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junit" }
+
+[plugins]
+
+managedversioning = { id = "dev.lukebemish.managedversioning", version.ref = "managedversioning" }
+nexuspublish = { id = "io.github.gradle-nexus.publish-plugin", version.ref = "nexuspublish" }
+pluginpublish = { id = "com.gradle.plugin-publish", version.ref = "pluginpublish" }

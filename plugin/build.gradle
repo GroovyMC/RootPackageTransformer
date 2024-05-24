@@ -1,0 +1,37 @@
+plugins {
+    id 'java-gradle-plugin'
+    alias libs.plugins.pluginpublish
+}
+
+group = 'org.groovymc.rootpackagetransformer'
+version = rootProject.version
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+}
+
+repositories {
+    gradlePluginPortal()
+}
+
+dependencies {
+    implementation gradleApi()
+    api(project(':')) {
+        capabilities {
+            requireCapability("${group}:${name}-transform")
+        }
+    }
+}
+
+gradlePlugin {
+    website = vcsUrl = 'https://github.com/GroovyMC/RootPackageTransformer'
+    plugins {
+        rootPackageTransformer {
+            id = 'org.groovymc.rootpackagetransformer'
+            displayName = 'RootPackageTransformer'
+            implementationClass = 'org.groovymc.rootpackagetransformer.plugin.RootPackageTransformerPlugin'
+            description = 'A gradle plugin to allow creation of an alternative version of an artifact, with marked classes in the root package'
+            tags.set(['java'])
+        }
+    }
+}

@@ -1,0 +1,150 @@
+import net.neoforged.gradleutils.PomUtilsExtension
+
+plugins {
+    id 'java'
+    id 'signing'
+    id 'maven-publish'
+    alias libs.plugins.managedversioning
+    alias libs.plugins.nexuspublish
+    id 'net.neoforged.gradleutils' version '3.0.0-alpha.11' apply false
+}
+
+group = 'org.groovymc'
+
+managedVersioning {
+    versionFile = rootProject.file('version.properties')
+
+    gitHubActions {
+        register('release') {
+            prettyName = 'Release'
+            workflowDispatch = true
+            gradleJob {
+                name = 'build'
+                step {
+                    setupGitUser()
+                }
+                readOnly = false
+                gradlew 'Tag Release', 'tagRelease'
+                gradlew 'Build', 'build'
+                step {
+                    run = 'git push && git push --tags'
+                }
+                recordVersion 'Record Version', 'version'
+            }
+            gradleJob {
+                name.set 'publish'
+                needs.add('build')
+                gradlew 'Publish', 'release', 'closeAndReleaseSonatypeStagingRepository'
+                tag.set('${{needs.build.outputs.version}}')
+                secrets 'GPG_SIGNING_KEY', 'GPG_KEY_PASSWORD', 'CENTRAL_MAVEN_USER', 'CENTRAL_MAVEN_PASSWORD'
+            }
+            gradleJob {
+                name.set 'publishPlugins'
+                needs.add('build')
+                gradlew 'Publish Plugins', 'publishPlugins'
+                tag.set('${{needs.build.outputs.version}}')
+                secrets 'GPG_SIGNING_KEY', 'GPG_KEY_PASSWORD', 'GPP_KEY', 'GPP_SECRET'
+            }
+        }
+    }
+
+    apply()
+}
+
+println "Building: $version"
+
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl = uri('https://s01.oss.sonatype.org/service/local/')
+            username = System.getenv('CENTRAL_MAVEN_USER') ?: ''
+            password = System.getenv('CENTRAL_MAVEN_PASSWORD') ?: ''
+        }
+    }
+}
+
+tasks.register('release') {
+    dependsOn tasks.publish
+    group 'publishing'
+}
+
+final String signingKey = System.getenv('GPG_SIGNING_KEY') ?: ''
+final String signingPassword = System.getenv('GPG_KEY_PASSWORD') ?: ''
+final boolean hasSigningDetails = !signingKey.isEmpty() && !signingPassword.isEmpty()
+
+sourceSets {
+    transform {}
+}
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+    withSourcesJar()
+    withJavadocJar()
+    registerFeature("transform") {
+        usingSourceSet sourceSets.transform
+        withSourcesJar()
+        withJavadocJar()
+    }
+}
+
+dependencies {
+    transformApi project(':')
+    transformImplementation libs.asm
+
+    testImplementation(project(':')) {
+        capabilities {
+            requireCapability("${group}:${name}-transform")
+        }
+    }
+    testImplementation libs.junit.api
+    testRuntimeOnly libs.junit.engine
+}
+
+test {
+    useJUnitPlatform()
+
+    options {
+        systemProperty('org.groovymc.rootpackagetransformer.testclasses', sourceSets.test.java.classesDirectory.get().asFile.absolutePath)
+    }
+}
+
+final pomUtils = extensions.create('pomUtils', PomUtilsExtension)
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            pomUtils.githubRepo(pom, 'GroovyMC', 'RootPackageTransformer')
+
+            pomUtils.license(pom, PomUtilsExtension.License.MIT)
+
+            pom {
+                developers {
+                    developer {
+                        id = 'groovymc'
+                        name = 'GroovyMC'
+                        email = 'holdings@groovymc.org'
+                        url = 'https://github.com/GroovyMC/'
+                    }
+                }
+            }
+        }
+    }
+}
+
+signing {
+    if (hasSigningDetails) useInMemoryPgpKeys(signingKey, signingPassword)
+}
+
+tasks.withType(Sign).configureEach {
+    onlyIf { hasSigningDetails }
+}
+
+signing {
+    sign publishing.publications.mavenJava
+}
