@@ -181,9 +181,6 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
                     v.skip();
                 }
             });
-
-            prefixArtifacts(runtimeElements);
-            prefixArtifacts(apiElements);
         }
 
         private void setupElementsCopyOf(SourceSet sourceSet, String newBaseCapability, TaskProvider<Jar> rootPackageJar, TaskProvider<TransformTask> transform, Configuration rootPackageElements, Configuration originalElements) {
@@ -246,6 +243,8 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             project.artifacts(artifactHandler ->
                 artifactHandler.add(rootPackageSourcesElements.getName(), rootPackageSourcesJar.get())
             );
+
+            prefixArtifacts(sourcesElements);
 
             return rootPackageSourcesElements;
         }
