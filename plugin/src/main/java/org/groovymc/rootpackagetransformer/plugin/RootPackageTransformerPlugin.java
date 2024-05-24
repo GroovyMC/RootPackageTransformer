@@ -37,8 +37,8 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             this.project = project;
         }
 
-        public void forSourceSet(SourceSet sourceSet, String capability) {
-            forSourceSet(sourceSet, capability, settings -> {});
+        public void forSourceSet(SourceSet sourceSet, String newBaseCapability) {
+            forSourceSet(sourceSet, newBaseCapability, settings -> {});
         }
 
         public void forSourceSet(SourceSet sourceSet, String newBaseCapability, Action<TransformSettings> action) {
@@ -70,7 +70,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             var rootPackageJar = project.getTasks().register(sourceSet.getTaskName("rootPackageJar", ""), Jar.class, task -> {
                 task.dependsOn(transform.get());
                 task.from(transform.get().getOutputDirectory());
-                task.getArchiveClassifier().set("");
+                task.getArchiveClassifier().set("rootpackage-"+sourceSet.getName());
                 task.from(sourceSet.getOutput().getResourcesDir());
 
                 task.from(transformList.get().getListFile(), spec -> {
@@ -101,7 +101,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
                 var rootPackageSourcesJar = project.getTasks().register(sourceSet.getTaskName("rootPackageSourcesJar", ""), Jar.class, task -> {
                     task.dependsOn(transformSources.get());
                     task.from(transformSources.get().getDestinationDirectory());
-                    task.getArchiveClassifier().set("sources");
+                    task.getArchiveClassifier().set("rootpackage-"+sourceSet.getName()+"-sources");
 
                     task.from(transformList.get().getListFile(), spec -> {
                         spec.into("META-INF");
@@ -187,6 +187,9 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             rootPackageElements.setCanBeConsumed(true);
             rootPackageElements.setCanBeResolved(false);
             rootPackageElements.getDependencies().addAllLater(project.provider(originalElements::getAllDependencies));
+            if (!sourceSet.getName().equals("main")) {
+                rootPackageElements.getOutgoing().capability(project.getGroup()+":"+project.getName()+"-"+sourceSet.getName()+":"+project.getVersion());
+            }
             copyAttributes(originalElements, rootPackageElements);
             originalElements.getOutgoing().capability(newBaseCapability);
 
@@ -211,7 +214,9 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             });
 
             project.artifacts(artifactHandler ->
-                artifactHandler.add(rootPackageElements.getName(), rootPackageJar.get())
+                artifactHandler.add(rootPackageElements.getName(), rootPackageJar.get(), spec -> {
+                    spec.setClassifier(sourceSetClassifier(sourceSet, ""));
+                })
             );
 
             prefixArtifacts(originalElements);
@@ -241,12 +246,24 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             copyAttributes(sourcesElements, rootPackageSourcesElements);
             sourcesElements.getOutgoing().capability(newBaseCapability);
             project.artifacts(artifactHandler ->
-                artifactHandler.add(rootPackageSourcesElements.getName(), rootPackageSourcesJar.get())
+                artifactHandler.add(rootPackageSourcesElements.getName(), rootPackageSourcesJar.get(), spec -> {
+                    spec.setClassifier(sourceSetClassifier(sourceSet, "sources"));
+                })
             );
 
             prefixArtifacts(sourcesElements);
 
             return rootPackageSourcesElements;
+        }
+
+        private static String sourceSetClassifier(SourceSet sourceSet, String classifier) {
+            if (sourceSet.getName().equals("main")) {
+                return classifier;
+            } else if (classifier.isEmpty()) {
+                return sourceSet.getName();
+            } else {
+                return sourceSet.getName() + "-" + classifier;
+            }
         }
 
         public static abstract class TransformSettings {
