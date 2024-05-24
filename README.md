@@ -11,12 +11,13 @@ dependencies {
 }
 ```
 
-The gradle plugin provides a method to create an alternative published outgoing variant for a given source set feature, providing a given capability:
+The gradle plugin provides a method to create an alternative published outgoing variant for a given source set feature. The transformed
+artifacts will be published at the normal location, and the original artifacts will be published with the provided capability.
 ```gradle
 plugins {
     id 'java'
     id 'org.groovymc.rootpackagetransformer' version '<version>'
 }
 
-rootPackageTransformer.forSourceSet(sourceSets.main, 'org.example:example:1.0.0')
+rootPackageTransformer.forSourceSet(sourceSets.main, 'org.example:example-jpms:1.0.0')
 ```

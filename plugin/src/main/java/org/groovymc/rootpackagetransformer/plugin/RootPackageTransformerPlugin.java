@@ -19,6 +19,7 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 
 import javax.inject.Inject;
+import java.util.ArrayList;
 import java.util.Set;
 
 public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
@@ -40,7 +41,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             forSourceSet(sourceSet, capability, settings -> {});
         }
 
-        public void forSourceSet(SourceSet sourceSet, String capability, Action<TransformSettings> action) {
+        public void forSourceSet(SourceSet sourceSet, String newBaseCapability, Action<TransformSettings> action) {
             TransformSettings settings = project.getObjects().newInstance(TransformSettings.class);
             action.execute(settings);
 
@@ -69,7 +70,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             var rootPackageJar = project.getTasks().register(sourceSet.getTaskName("rootPackageJar", ""), Jar.class, task -> {
                 task.dependsOn(transform.get());
                 task.from(transform.get().getOutputDirectory());
-                task.getArchiveClassifier().set("rootpackage");
+                task.getArchiveClassifier().set("");
                 task.from(sourceSet.getOutput().getResourcesDir());
 
                 task.from(transformList.get().getListFile(), spec -> {
@@ -82,7 +83,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
 
             AdhocComponentWithVariants javaComponent = (AdhocComponentWithVariants) project.getComponents().getByName("java");
 
-            setupRootPackageElements(sourceSet, capability, rootPackageJar, transform, javaComponent);
+            setupRootPackageElements(sourceSet, newBaseCapability, rootPackageJar, transform, javaComponent);
 
             var assemble = project.getTasks().named("assemble");
 
@@ -100,7 +101,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
                 var rootPackageSourcesJar = project.getTasks().register(sourceSet.getTaskName("rootPackageSourcesJar", ""), Jar.class, task -> {
                     task.dependsOn(transformSources.get());
                     task.from(transformSources.get().getDestinationDirectory());
-                    task.getArchiveClassifier().set("rootpackage-sources");
+                    task.getArchiveClassifier().set("sources");
 
                     task.from(transformList.get().getListFile(), spec -> {
                         spec.into("META-INF");
@@ -110,7 +111,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
                     task.dependsOn(sourcesJarManifest.originalManifest());
                 });
 
-                var rootPackageSourcesElements = setupRootPackageSourcesElements(sourceSet, capability, rootPackageSourcesJar);
+                var rootPackageSourcesElements = setupRootPackageSourcesElements(sourceSet, newBaseCapability, rootPackageSourcesJar);
                 javaComponent.addVariantsFromConfiguration(rootPackageSourcesElements, v -> {});
 
                 assemble.configure(task -> {
@@ -155,15 +156,15 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
 
         private record ManifestLocation(org.gradle.api.provider.Provider<org.gradle.api.file.Directory> manifestDir, TaskProvider<Copy> originalManifest) { }
 
-        private void setupRootPackageElements(SourceSet sourceSet, String capability, TaskProvider<Jar> rootPackageJar, TaskProvider<TransformTask> transform, AdhocComponentWithVariants component) {
+        private void setupRootPackageElements(SourceSet sourceSet, String newBaseCapability, TaskProvider<Jar> rootPackageJar, TaskProvider<TransformTask> transform, AdhocComponentWithVariants component) {
             var rootPackageRuntimeElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("rootPackageRuntimeElements", ""));
             var runtimeElements = project.getConfigurations().getByName(sourceSet.getTaskName(JavaPlugin.RUNTIME_ELEMENTS_CONFIGURATION_NAME, ""));
 
             var rootPackageApiElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("rootPackageApiElements", ""));
             var apiElements = project.getConfigurations().getByName(sourceSet.getTaskName(JavaPlugin.API_ELEMENTS_CONFIGURATION_NAME, ""));
 
-            setupElementsCopyOf(sourceSet, capability, rootPackageJar, transform, rootPackageRuntimeElements, runtimeElements);
-            setupElementsCopyOf(sourceSet, capability, rootPackageJar, transform, rootPackageApiElements, apiElements);
+            setupElementsCopyOf(sourceSet, newBaseCapability, rootPackageJar, transform, rootPackageRuntimeElements, runtimeElements);
+            setupElementsCopyOf(sourceSet, newBaseCapability, rootPackageJar, transform, rootPackageApiElements, apiElements);
 
             component.addVariantsFromConfiguration(rootPackageRuntimeElements, v -> {
                 v.mapToMavenScope("runtime");
@@ -180,14 +181,17 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
                     v.skip();
                 }
             });
+
+            prefixArtifacts(runtimeElements);
+            prefixArtifacts(apiElements);
         }
 
-        private void setupElementsCopyOf(SourceSet sourceSet, String capability, TaskProvider<Jar> rootPackageJar, TaskProvider<TransformTask> transform, Configuration rootPackageElements, Configuration sourceElements) {
+        private void setupElementsCopyOf(SourceSet sourceSet, String newBaseCapability, TaskProvider<Jar> rootPackageJar, TaskProvider<TransformTask> transform, Configuration rootPackageElements, Configuration originalElements) {
             rootPackageElements.setCanBeConsumed(true);
             rootPackageElements.setCanBeResolved(false);
-            rootPackageElements.getDependencies().addAllLater(project.provider(sourceElements::getAllDependencies));
-            copyAttributes(sourceElements, rootPackageElements);
-            rootPackageElements.getOutgoing().capability(capability);
+            rootPackageElements.getDependencies().addAllLater(project.provider(originalElements::getAllDependencies));
+            copyAttributes(originalElements, rootPackageElements);
+            originalElements.getOutgoing().capability(newBaseCapability);
 
             rootPackageElements.getOutgoing().getVariants().create("classes", variant -> {
                 variant.artifact(transform.get().getOutputDirectory(), artifact -> {
@@ -212,16 +216,33 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             project.artifacts(artifactHandler ->
                 artifactHandler.add(rootPackageElements.getName(), rootPackageJar.get())
             );
+
+            prefixArtifacts(originalElements);
         }
 
-        private Configuration setupRootPackageSourcesElements(SourceSet sourceSet, String capability, TaskProvider<Jar> rootPackageSourcesJar) {
+        private void prefixArtifacts(Configuration elements) {
+            var artifacts = new ArrayList<>(elements.getOutgoing().getArtifacts());
+            elements.getOutgoing().getArtifacts().clear();
+            project.artifacts(ah -> {
+                for (var artifact : artifacts) {
+                    ah.add(elements.getName(), artifact.getFile(), artifactConfig -> {
+                        artifactConfig.builtBy(artifact.getBuildDependencies());
+                        artifactConfig.setType(artifact.getType());
+                        artifactConfig.setExtension(artifact.getExtension());
+                        artifactConfig.setClassifier((artifact.getClassifier() == null || artifact.getClassifier().isEmpty()) ? "jpms" : "jpms-" + artifact.getClassifier());
+                    });
+                }
+            });
+        }
+
+        private Configuration setupRootPackageSourcesElements(SourceSet sourceSet, String newBaseCapability, TaskProvider<Jar> rootPackageSourcesJar) {
             var rootPackageSourcesElements = project.getConfigurations().maybeCreate(sourceSet.getTaskName("rootPackageSourcesElements", ""));
             rootPackageSourcesElements.setCanBeConsumed(true);
             rootPackageSourcesElements.setCanBeResolved(false);
             var sourcesElements = project.getConfigurations().getByName(sourceSet.getTaskName(JavaPlugin.SOURCES_ELEMENTS_CONFIGURATION_NAME, ""));
             rootPackageSourcesElements.getDependencies().addAllLater(project.provider(sourcesElements::getDependencies));
             copyAttributes(sourcesElements, rootPackageSourcesElements);
-            rootPackageSourcesElements.getOutgoing().capability(capability);
+            sourcesElements.getOutgoing().capability(newBaseCapability);
             project.artifacts(artifactHandler ->
                 artifactHandler.add(rootPackageSourcesElements.getName(), rootPackageSourcesJar.get())
             );
