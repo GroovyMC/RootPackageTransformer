@@ -136,12 +136,12 @@ public final class RootPackageTransformer implements UnaryOperator<String> {
             if (rewritten.trim().startsWith("package ")) {
                 int end = rewritten.indexOf(';');
                 if (end != -1) {
-                    String prefix = "import "+className.substring(0, className.indexOf('.'))+".*;";
+                    String prefix = "import "+className.replace('/', '.').substring(0, className.lastIndexOf('.'))+".*;";
                     rewritten = prefix+rewritten.substring(end + 1);
                 } else {
                     int line = rewritten.indexOf('\n');
                     if (line != -1) {
-                        String prefix = "import "+className.substring(className.indexOf('.')+1)+(rewritten.contains("\r") ? "\r\n" : "\n")+".*";
+                        String prefix = "import "+className.replace('/','.').substring(className.lastIndexOf('.')+1)+".*"+(rewritten.contains("\r") ? "\r\n" : "\n");
                         rewritten = prefix+rewritten.substring(line + 1);
                     }
                 }
