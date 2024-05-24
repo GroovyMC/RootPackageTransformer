@@ -123,6 +123,9 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             });
         }
 
+        // Can't be a lambda or local class because gradle serialization doesn't like it
+        // Can't be a record because we're running with gradle versions before those're supported
+        @SuppressWarnings("ClassCanBeRecord")
         private static class SpecConfiguration implements Action<CopySpec> {
             private final FileCollection source;
 
@@ -238,6 +241,7 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             }
         }
 
+        // Can't be a lambda or local class because gradle serialization doesn't like it
         private static class DefaultExtensionSpec implements Spec<String> {
             private static final Set<String> DEFAULTS = Set.of("java", "groovy", "scala", "kt");
 
