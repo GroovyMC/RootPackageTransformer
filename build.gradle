@@ -119,15 +119,15 @@ publishing {
         mavenJava(MavenPublication) {
             from components.java
 
-            name = 'RootPackageTransformer'
-            description = 'Transforms bytecode and sources to move marked classes to the root package'
-            url = 'https://github.com/GroovyMC/RootPackageTransformer'
-
             pomUtils.githubRepo(pom, 'GroovyMC', 'RootPackageTransformer')
 
             pomUtils.license(pom, PomUtilsExtension.License.MIT)
 
             pom {
+                name = 'RootPackageTransformer'
+                description = 'Transforms bytecode and sources to move marked classes to the root package'
+                url = 'https://github.com/GroovyMC/RootPackageTransformer'
+
                 developers {
                     developer {
                         id = 'groovymc'
