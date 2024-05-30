@@ -6,6 +6,11 @@ plugins {
 group = 'org.groovymc.rootpackagetransformer'
 version = rootProject.version
 
+if (System.getenv('GPP_KEY')) {
+    ext['gradle.publish.key'] = System.getenv('GPP_KEY')
+    ext['gradle.publish.secret'] = System.getenv('GPP_SECRET')
+}
+
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(17))
 }
