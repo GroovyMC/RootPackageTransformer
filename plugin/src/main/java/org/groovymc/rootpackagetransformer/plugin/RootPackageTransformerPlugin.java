@@ -214,7 +214,8 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             });
 
             project.artifacts(artifactHandler ->
-                artifactHandler.add(rootPackageElements.getName(), rootPackageJar.get(), spec -> {
+                artifactHandler.add(rootPackageElements.getName(), rootPackageJar.get().getArchiveFile(), spec -> {
+                    spec.builtBy(rootPackageJar.get());
                     spec.setClassifier(sourceSetClassifier(sourceSet, ""));
                 })
             );
@@ -246,7 +247,8 @@ public abstract class RootPackageTransformerPlugin implements Plugin<Project> {
             copyAttributes(sourcesElements, rootPackageSourcesElements);
             sourcesElements.getOutgoing().capability(newBaseCapability);
             project.artifacts(artifactHandler ->
-                artifactHandler.add(rootPackageSourcesElements.getName(), rootPackageSourcesJar.get(), spec -> {
+                artifactHandler.add(rootPackageSourcesElements.getName(), rootPackageSourcesJar.get().getArchiveFile(), spec -> {
+                    spec.builtBy(rootPackageSourcesJar.get());
                     spec.setClassifier(sourceSetClassifier(sourceSet, "sources"));
                 })
             );
